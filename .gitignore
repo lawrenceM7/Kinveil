@@ -1,0 +1,63 @@
+# Operating-system files
+.DS_Store
+Thumbs.db
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python environments and caches
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Packaging output
+build/
+dist/
+
+# Editors and local agent state
+.idea/
+.vscode/
+.codex/
+.agents/
+
+# Kinveil private local state and biometric databases
+/.kinveil/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Local face models and downloaded model archives
+/.insightface/
+/models/
+*.onnx
+buffalo_*.zip
+antelope*.zip
+
+# Private enrollment media and generated runtime material
+/enrollments/
+/captures/
+/recordings/
+/private-data/
+/local-data/
+/generated/
+/artifacts/
+/output/
+/outputs/
+*.log
+
+# Local development handoff; contains machine-specific paths and status
+/CONTEXT.md
