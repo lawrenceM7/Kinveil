@@ -13,13 +13,16 @@ still pass through the permission system.
 5. Reject near-duplicate samples and store up to 24 varied templates in SQLite.
 6. Delete all partial data if no usable frame is found.
 
-The continuous camera path can also promote the one visible temporary visitor
-after explicit biometric consent. Persistent templates are maintained as a
-bounded representative pool: 24 samples per person, with no more than 8 in one
-coarse head-pose bucket. New near-duplicates are ignored unless their detector
-quality is meaningfully better; when a bucket is full, redundant or lower-
-quality samples are pruned. Automatic updates for returning people require a
-higher match confidence than ordinary recognition to reduce identity drift.
+The continuous camera path automatically offers enrollment after an unknown
+track has remained stable for several observations. The camera window requests
+explicit biometric consent with a `y`/`n` choice; it never persists an unknown
+visitor merely because camera processing was allowed. Persistent templates are
+maintained as a bounded representative pool: 24 samples per person, with no
+more than 8 in one coarse head-pose bucket. New near-duplicates are ignored
+unless their detector quality is meaningfully better; when a bucket is full,
+redundant or lower-quality samples are pruned. Automatic updates for returning
+people require a higher match confidence than ordinary recognition to reduce
+identity drift.
 
 The video should slowly cover frontal, left, right, slightly up and slightly down
 views under ordinary lighting. Raw frames are not stored by the current module.

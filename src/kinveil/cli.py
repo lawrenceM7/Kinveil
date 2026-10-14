@@ -48,6 +48,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     watch.add_argument("--camera", type=int, default=0)
     watch.add_argument("--interval", type=float, default=0.5)
+    watch.add_argument(
+        "--allow-camera-processing",
+        action="store_true",
+        help="allow camera access and transient in-memory face processing",
+    )
     watch.add_argument("--allow-camera", action="store_true")
     watch.add_argument("--allow-transient-processing", action="store_true")
     return parser
@@ -91,23 +96,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.face_command == "watch":
-        camera_allowed = args.allow_camera or _confirm(
-            "Allow Kinveil to open the camera? Frames are not recorded"
+        preapproved = args.allow_camera_processing or (
+            args.allow_camera and args.allow_transient_processing
         )
-        if not camera_allowed:
-            raise SystemExit("camera access was not granted")
-        processing_allowed = args.allow_transient_processing or _confirm(
-            "Allow Kinveil to detect faces transiently in memory?"
+        camera_processing_allowed = preapproved or _confirm(
+            "Allow Kinveil to open the camera and analyze faces transiently in memory? "
+            "Frames are not recorded"
         )
-        if not processing_allowed:
-            raise SystemExit("transient face processing was not granted")
+        if not camera_processing_allowed:
+            raise SystemExit("camera access and transient face processing were not granted")
         backend = InsightFaceBackend(settings.face_model, settings.detector_size)
         engine = PresenceEngine(
             backend,
             container.faces,
             PresencePermissions(
-                camera_allowed=camera_allowed,
-                transient_processing_allowed=processing_allowed,
+                camera_allowed=True,
+                transient_processing_allowed=True,
             ),
             identity_threshold=settings.face_threshold,
             identity_margin=settings.face_margin,
@@ -167,20 +171,9 @@ def _confirm(prompt: str) -> bool:
 def _enroll_camera_visitor(
     engine: PresenceEngine, track: TrackSnapshot
 ) -> str | None:
-    label = track.label
-    print(f"\nSelected {label} for persistent face enrollment.")
-    if not _confirm(
-        f"Does {label} consent to storing biometric face templates on this device?"
-    ):
-        return None
-    try:
-        display_name = input("Optional confirmed display name (press Enter to skip): ").strip()
-    except EOFError:
-        display_name = ""
     person = engine.persist_track(
         track.track_id,
         biometric_consent=True,
-        display_name=display_name or None,
     )
     counts = engine.store.pose_counts(person.id)
     summary = ", ".join(f"{pose}:{count}" for pose, count in sorted(counts.items()))

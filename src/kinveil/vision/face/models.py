@@ -87,3 +87,4 @@ class TrackSnapshot:
     identity_confidence: float
     persistent: bool
     last_seen: float
+    observations: int

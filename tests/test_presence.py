@@ -70,6 +70,8 @@ def test_unknown_people_stay_ephemeral_and_keep_labels(tmp_path: Path) -> None:
 
     assert [item.label for item in first] == ["Visitor A", "Visitor B"]
     assert [item.label for item in second] == ["Visitor B", "Visitor A"]
+    assert [item.observations for item in first] == [1, 1]
+    assert [item.observations for item in second] == [2, 2]
     assert store.list_people() == ()
 
 

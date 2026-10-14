@@ -127,18 +127,23 @@ face. Unknown visitors receive temporary in-memory labels and are not enrolled:
 
     kinveil faces watch
 
-Kinveil asks separately for camera access and transient in-memory face
-processing before initializing the model or camera. Press q or Escape to stop.
-For automated development sessions, the two prompts can be acknowledged with
-the --allow-camera and --allow-transient-processing flags.
+Kinveil uses one startup prompt that clearly covers both camera access and
+transient in-memory face analysis before initializing the model or camera.
+Press q or Escape to stop. Automated development sessions can acknowledge this
+prompt with `--allow-camera-processing`; the two older allow flags remain
+compatible when supplied together.
 
-When exactly one unknown visitor is visible, press `e` in the camera window to
-begin persistent enrollment. The terminal asks for explicit biometric consent
-and an optional confirmed display name. After enrollment, Kinveil continuously
-refreshes only sufficiently confident, high-quality templates. It stores at
-most 24 templates per person and at most 8 per coarse pose bucket (`front`,
-`left`, `right`, `up`, `down`, or `unknown`), pruning redundant samples instead
-of growing the database without limit. Raw camera frames are not stored.
+An unknown visitor is tracked automatically in memory. After the same visitor
+has been observed in several samples, the camera window asks whether Kinveil may
+recognize that visitor on future visits. Press `y` to grant persistent biometric
+storage or `n` to keep the visitor temporary for that session; no enrollment
+hotkey or terminal input is required. A consented visitor initially receives an
+anonymous local alias and can be named later. After enrollment, Kinveil
+continuously refreshes only sufficiently confident, high-quality templates. It
+stores at most 24 templates per person and at most 8 per coarse pose bucket
+(`front`, `left`, `right`, `up`, `down`, or `unknown`), pruning redundant
+samples instead of growing the database without limit. Raw camera frames are
+not stored.
 
 A persistent identity may initially have no name. Once a conversationally
 discovered name has been confirmed, save it independently of the face identity:

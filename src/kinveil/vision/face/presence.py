@@ -27,6 +27,7 @@ class _Track:
     person_id: str | None = None
     label: str = ""
     identity_confidence: float = 0.0
+    observations: int = 0
     embeddings: list[np.ndarray] = field(default_factory=list)
     pose_labels: list[str] = field(default_factory=list)
     quality_scores: list[float] = field(default_factory=list)
@@ -185,6 +186,7 @@ class PresenceEngine:
             track.identity_confidence = max(0.0, match.similarity)
         track.box = face.box
         track.last_seen = now
+        track.observations += 1
         self._add_sample(track, embedding, face.pose_label, face.detection_score)
         return track
 
@@ -256,6 +258,7 @@ class PresenceEngine:
             identity_confidence=track.identity_confidence,
             persistent=track.person_id is not None,
             last_seen=track.last_seen,
+            observations=track.observations,
         )
 
 
