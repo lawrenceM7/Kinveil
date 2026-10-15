@@ -8,6 +8,7 @@ from kinveil.audio.voice.model_files import (
     ArchivedVoiceModelSpec,
     VoiceModelSpec,
     install_default_voice_models,
+    install_paraformer_model,
     install_whisper_model,
 )
 
@@ -147,3 +148,27 @@ def test_whisper_install_downloads_only_hash_checked_runtime_files(tmp_path):
 def test_whisper_install_requires_explicit_license_acceptance(tmp_path):
     with pytest.raises(ValueError, match="license"):
         install_whisper_model(tmp_path, accept_model_license=False)
+
+
+def test_paraformer_install_downloads_only_hash_checked_runtime_files(tmp_path):
+    files = {"model.int8.onnx": b"model", "tokens.txt": b"tokens"}
+    specs = tuple(
+        VoiceModelSpec(
+            filename=name,
+            url=f"https://example.invalid/{name}",
+            sha256=hashlib.sha256(content).hexdigest(),
+            license_name="Apache-2.0",
+            source_url="https://example.invalid",
+        )
+        for name, content in files.items()
+    )
+
+    installed = install_paraformer_model(
+        tmp_path / "paraformer",
+        accept_model_license=True,
+        specs=specs,
+        downloader=lambda spec, destination: destination.write_bytes(files[spec.filename]),
+    )
+
+    assert (installed / "model.int8.onnx").read_bytes() == b"model"
+    assert (installed / "tokens.txt").read_bytes() == b"tokens"

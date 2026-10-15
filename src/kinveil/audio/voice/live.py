@@ -25,6 +25,87 @@ class VoiceSegmenter(Protocol):
     def accept(self, samples: np.ndarray) -> tuple[SpeechSegment, ...]: ...
 
 
+class AdaptivePauseSegmenter:
+    """Merge nearby VAD chunks using a pause budget that follows phrase length."""
+
+    def __init__(
+        self,
+        segmenter: VoiceSegmenter,
+        *,
+        min_pause_seconds: float = 0.4,
+        max_pause_seconds: float = 1.0,
+        max_segment_seconds: float = 20.0,
+        history_seconds: float = 30.0,
+    ) -> None:
+        if not 0 <= min_pause_seconds <= max_pause_seconds:
+            raise ValueError("pause range must be non-negative and ordered")
+        self.segmenter = segmenter
+        self.sample_rate = segmenter.sample_rate
+        self.min_pause_seconds = min_pause_seconds
+        self.max_pause_seconds = max_pause_seconds
+        self.max_segment_samples = round(max_segment_seconds * self.sample_rate)
+        self._history_capacity = round(history_seconds * self.sample_rate)
+        self._history = np.empty(0, dtype=np.float32)
+        self._history_start = 0
+        self._accepted_samples = 0
+        self._pending: SpeechSegment | None = None
+
+    def accept(self, samples: np.ndarray) -> tuple[SpeechSegment, ...]:
+        waveform = np.ascontiguousarray(samples, dtype=np.float32).reshape(-1)
+        self._append_history(waveform)
+        ready: list[SpeechSegment] = []
+        for segment in self.segmenter.accept(waveform):
+            if self._pending is None:
+                self._pending = segment
+                continue
+            gap = max(0, segment.start_sample - self._pending.end_sample)
+            combined_size = segment.end_sample - self._pending.start_sample
+            pause_samples = round(self._pause_seconds(self._pending) * self.sample_rate)
+            if gap <= pause_samples and combined_size <= self.max_segment_samples:
+                self._pending = self._combined(self._pending, segment)
+            else:
+                ready.append(self._pending)
+                self._pending = segment
+        if self._pending is not None:
+            pause_samples = round(self._pause_seconds(self._pending) * self.sample_rate)
+            if self._accepted_samples - self._pending.end_sample >= pause_samples:
+                ready.append(self._pending)
+                self._pending = None
+        return tuple(ready)
+
+    def _pause_seconds(self, segment: SpeechSegment) -> float:
+        duration = (segment.end_sample - segment.start_sample) / self.sample_rate
+        # The segment already carries 200 ms of trailing audio, so this budget
+        # targets the remainder of an approximately 600-1200 ms pause. The
+        # underlying VAD may already have waited for part of that interval.
+        fraction = min(1.0, max(0.0, duration / 4.0))
+        return self.max_pause_seconds - fraction * (
+            self.max_pause_seconds - self.min_pause_seconds
+        )
+
+    def _combined(self, first: SpeechSegment, second: SpeechSegment) -> SpeechSegment:
+        samples = self._history_slice(first.start_sample, second.end_sample)
+        if samples is None:
+            samples = np.concatenate((first.samples, second.samples))
+        return SpeechSegment(samples, first.start_sample, second.end_sample)
+
+    def _append_history(self, waveform: np.ndarray) -> None:
+        if waveform.size:
+            self._history = np.concatenate((self._history, waveform))
+            self._accepted_samples += waveform.size
+        overflow = self._history.size - self._history_capacity
+        if overflow > 0:
+            self._history = self._history[overflow:]
+            self._history_start += overflow
+
+    def _history_slice(self, start_sample: int, end_sample: int) -> np.ndarray | None:
+        relative_start = start_sample - self._history_start
+        relative_end = end_sample - self._history_start
+        if relative_start < 0 or relative_end > self._history.size:
+            return None
+        return self._history[relative_start:relative_end].copy()
+
+
 class SherpaVadSegmenter:
     """Turn streaming 16 kHz microphone samples into speech-only segments."""
 
@@ -37,6 +118,8 @@ class SherpaVadSegmenter:
         min_silence_seconds: float = 0.8,
         min_speech_seconds: float = 0.25,
         max_speech_seconds: float = 20.0,
+        pre_roll_seconds: float = 0.3,
+        post_roll_seconds: float = 0.2,
     ) -> None:
         if not model.is_file():
             raise FileNotFoundError(f"VAD model not found: {model}")
@@ -48,6 +131,12 @@ class SherpaVadSegmenter:
         config.silero_vad.max_speech_duration = max_speech_seconds
         config.sample_rate = sample_rate
         self.sample_rate = sample_rate
+        self.pre_roll_samples = round(pre_roll_seconds * sample_rate)
+        self.post_roll_samples = round(post_roll_seconds * sample_rate)
+        self._history_capacity = round(buffer_seconds * sample_rate)
+        self._history = np.empty(0, dtype=np.float32)
+        self._history_start = 0
+        self._accepted_samples = 0
         self._vad = sherpa_onnx.VoiceActivityDetector(
             config,
             buffer_size_in_seconds=buffer_seconds,
@@ -55,21 +144,46 @@ class SherpaVadSegmenter:
 
     def accept(self, samples: np.ndarray) -> tuple[SpeechSegment, ...]:
         waveform = np.ascontiguousarray(samples, dtype=np.float32).reshape(-1)
+        self._append_history(waveform)
         self._vad.accept_waveform(waveform)
         segments: list[SpeechSegment] = []
         while not self._vad.empty():
             front = self._vad.front
             captured = np.asarray(front.samples, dtype=np.float32).copy()
             start_sample = int(front.start)
+            end_sample = start_sample + captured.size
+            padded_start = max(0, start_sample - self.pre_roll_samples)
+            padded_end = min(self._accepted_samples, end_sample + self.post_roll_samples)
+            padded = self._history_slice(padded_start, padded_end)
+            if padded is not None:
+                captured = padded
+                start_sample = padded_start
+                end_sample = padded_end
             segments.append(
                 SpeechSegment(
                     captured,
                     start_sample,
-                    start_sample + captured.size,
+                    end_sample,
                 )
             )
             self._vad.pop()
         return tuple(segments)
+
+    def _append_history(self, waveform: np.ndarray) -> None:
+        if waveform.size:
+            self._history = np.concatenate((self._history, waveform))
+            self._accepted_samples += waveform.size
+        overflow = self._history.size - self._history_capacity
+        if overflow > 0:
+            self._history = self._history[overflow:]
+            self._history_start += overflow
+
+    def _history_slice(self, start_sample: int, end_sample: int) -> np.ndarray | None:
+        relative_start = start_sample - self._history_start
+        relative_end = end_sample - self._history_start
+        if relative_start < 0 or relative_end > self._history.size:
+            return None
+        return self._history[relative_start:relative_end].copy()
 
 
 class MicrophoneVoiceRunner:

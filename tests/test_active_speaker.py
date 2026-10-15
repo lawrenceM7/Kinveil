@@ -130,6 +130,23 @@ def test_no_visible_mouth_is_unknown():
     assert result.reason == "no synchronized visible mouth"
 
 
+def test_short_utterance_accepts_mouth_motion_just_outside_audio_boundary():
+    near_boundary = tuple(
+        MouthMotion("face-1", "person-1", "Alice", timestamp, 0.03, True)
+        for timestamp in (0.85, 0.95, 1.05)
+    )
+
+    result = AudioVisualSpeakerResolver().resolve(
+        voice(),
+        near_boundary,
+        segment_started_at=1.0,
+        segment_ended_at=1.1,
+    )
+
+    assert result.accepted
+    assert result.label == "Alice"
+
+
 def test_mouth_motion_analyzer_uses_only_face_mouth_region():
     analyzer = MouthMotionAnalyzer()
     first_frame = np.zeros((180, 180, 3), dtype=np.uint8)

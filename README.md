@@ -148,7 +148,7 @@ kinveil voices setup-models --accept-model-licenses
 The setup command prints the third-party model licenses unless the acceptance
 flag is present. It downloads an Apache-2.0 3D-Speaker CAM++ embedding model,
 the MIT-licensed Silero VAD and Pyannote Segmentation models, and the MIT-licensed
-Whisper Small multilingual INT8 files used by debug transcription. Every archive
+Paraformer Chinese/English INT8 files used by debug transcription. Every archive
 and installed model file is checked against a fixed SHA-256 hash.
 
 Listen without persisting unknown speakers:
@@ -201,10 +201,11 @@ kinveil start --debug
 Debug lines include the resolved identity, transcript, lip-motion score, and
 decision reason. The regular
 `kinveil voices setup-models --accept-model-licenses` command installs the
-required Whisper model in the platform data directory at
-`models/voice/sherpa-onnx-whisper-small`; pass `--whisper-model-dir PATH` to use
-another extracted model directory. Normal `kinveil start` does not load Whisper
-or print transcripts.
+default Paraformer model at
+`models/voice/sherpa-onnx-paraformer-zh-2024-03-09`; pass
+`--paraformer-model-dir PATH` to use another directory. Existing Whisper models
+remain available through `--whisper-model-dir PATH`. Normal `kinveil start`
+does not load an ASR model or print transcripts.
 
 This session attributes speech only when visible mouth motion overlaps the
 detected speech interval. A known voice must agree with the recognized face.

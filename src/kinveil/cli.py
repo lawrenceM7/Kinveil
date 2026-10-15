@@ -5,9 +5,15 @@ import json
 from pathlib import Path
 
 from kinveil.app import AppContainer
-from kinveil.audio import SherpaOnnxKokoroTTS, SherpaOnnxWhisperTranscriber, Transcript
+from kinveil.audio import (
+    SherpaOnnxKokoroTTS,
+    SherpaOnnxParaformerTranscriber,
+    SherpaOnnxWhisperTranscriber,
+    Transcript,
+)
 from kinveil.audio.voice import (
     ActiveSpeakerResult,
+    AdaptivePauseSegmenter,
     AudioVisualSessionRunner,
     MicrophoneVoiceRunner,
     PyannoteOverlapDetector,
@@ -17,8 +23,8 @@ from kinveil.audio.voice import (
     SpeechBrainSepFormerSeparator,
     VoiceIdentityEngine,
     install_default_voice_models,
+    install_paraformer_model,
     install_sepformer_model,
-    install_whisper_model,
     voice_model_license_summary,
 )
 from kinveil.vision.face import (
@@ -145,6 +151,11 @@ def _add_session_arguments(parser: argparse.ArgumentParser, *, include_debug: bo
         help="local SpeechBrain SepFormer model directory",
     )
     parser.add_argument(
+        "--paraformer-model-dir",
+        type=Path,
+        help="local sherpa-onnx Chinese/English Paraformer directory",
+    )
+    parser.add_argument(
         "--whisper-model-dir",
         type=Path,
         help="local sherpa-onnx Whisper directory",
@@ -152,7 +163,7 @@ def _add_session_arguments(parser: argparse.ArgumentParser, *, include_debug: bo
     parser.add_argument(
         "--transcription-language",
         default="",
-        help="Whisper language code; omit it for automatic detection",
+        help="Whisper fallback language code; Paraformer is fixed to Chinese/English",
     )
     parser.add_argument(
         "--allow-local-sensing",
@@ -222,7 +233,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         voice_backend = SherpaOnnxVoiceBackend(embedding_model)
         voice = VoiceIdentityEngine(voice_backend, container.voices)
-        segmenter = SherpaVadSegmenter(vad_model)
+        segmenter = AdaptivePauseSegmenter(SherpaVadSegmenter(vad_model))
         overlap_detector = PyannoteOverlapDetector(overlap_model)
         separation_model = args.separation_model or settings.voice_separation_model_dir
         separator = (
@@ -231,16 +242,23 @@ def main(argv: list[str] | None = None) -> int:
             else None
         )
         debug = bool(getattr(args, "debug", False))
-        whisper_model_dir = args.whisper_model_dir or (
-            settings.voice_transcription_model_dir if debug else None
+        whisper_model_dir = args.whisper_model_dir
+        paraformer_model_dir = args.paraformer_model_dir or (
+            settings.voice_paraformer_model_dir if debug and whisper_model_dir is None else None
         )
-        if debug and whisper_model_dir is not None and not whisper_model_dir.is_dir():
+        if (
+            debug
+            and (paraformer_model_dir is None or not paraformer_model_dir.is_dir())
+            and whisper_model_dir is None
+        ):
             raise SystemExit(
                 "debug transcription model is missing; run: kinveil voices setup-models "
-                "--accept-model-licenses, or pass --whisper-model-dir"
+                "--accept-model-licenses, or pass --paraformer-model-dir/--whisper-model-dir"
             )
         transcriber = (
-            SherpaOnnxWhisperTranscriber(
+            SherpaOnnxParaformerTranscriber(paraformer_model_dir)
+            if paraformer_model_dir is not None and paraformer_model_dir.is_dir()
+            else SherpaOnnxWhisperTranscriber(
                 whisper_model_dir,
                 language=args.transcription_language,
             )
@@ -306,8 +324,8 @@ def main(argv: list[str] | None = None) -> int:
                 accept_model_licenses=True,
             ):
                 print(f"Installed {model}")
-            transcription_model = install_whisper_model(
-                settings.voice_transcription_model_dir,
+            transcription_model = install_paraformer_model(
+                settings.voice_paraformer_model_dir,
                 accept_model_license=True,
             )
             print(f"Installed {transcription_model}")
@@ -336,7 +354,7 @@ def main(argv: list[str] | None = None) -> int:
             )
         backend = SherpaOnnxVoiceBackend(embedding_model)
         engine = VoiceIdentityEngine(backend, container.voices)
-        segmenter = SherpaVadSegmenter(vad_model)
+        segmenter = AdaptivePauseSegmenter(SherpaVadSegmenter(vad_model))
         prompted_tracks: set[str] = set()
 
         def report(snapshot: SpeakerTrackSnapshot, duration: float) -> None:
@@ -465,7 +483,15 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _print_debug_transcript(result: ActiveSpeakerResult, transcript: Transcript) -> None:
-    detail = f"lip={result.lip_score:.3f}; {result.reason}"
+    metrics = []
+    if transcript.audio_duration is not None:
+        metrics.append(f"audio={transcript.audio_duration:.2f}s")
+    if transcript.audio_rms is not None:
+        metrics.append(f"rms={transcript.audio_rms:.4f}")
+    if transcript.language:
+        metrics.append(f"lang={transcript.language}")
+    metrics.append(f"lip={result.lip_score:.3f}")
+    detail = f"{'; '.join(metrics)}; {result.reason}"
     print(f"[{result.label}] {transcript.text} ({detail})")
 
 

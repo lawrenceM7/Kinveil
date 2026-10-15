@@ -2,9 +2,10 @@ from .active_speaker import ActiveSpeakerResult, AudioVisualSpeakerResolver, Mou
 from .av_session import AudioVisualSessionRunner
 from .backend import VoiceEmbeddingBackend, normalize_voice_embedding
 from .engine import VoiceIdentityEngine
-from .live import MicrophoneVoiceRunner, SherpaVadSegmenter, SpeechSegment
+from .live import AdaptivePauseSegmenter, MicrophoneVoiceRunner, SherpaVadSegmenter, SpeechSegment
 from .model_files import (
     install_default_voice_models,
+    install_paraformer_model,
     install_whisper_model,
     voice_model_license_summary,
 )
@@ -22,6 +23,7 @@ from .store import VoiceStore
 
 __all__ = [
     "ActiveSpeakerResult",
+    "AdaptivePauseSegmenter",
     "AudioVisualSessionRunner",
     "AudioVisualSpeakerResolver",
     "MicrophoneVoiceRunner",
@@ -41,6 +43,7 @@ __all__ = [
     "VoiceRecognizer",
     "VoiceStore",
     "install_default_voice_models",
+    "install_paraformer_model",
     "install_sepformer_model",
     "install_whisper_model",
     "normalize_voice_embedding",

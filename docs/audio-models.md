@@ -10,12 +10,14 @@ change slightly across filesystem formats.
 | Voice identity | 3D-Speaker CAM++ | one ONNX file | 28.3 MB |
 | Overlap detection | Pyannote Segmentation 3.0 | one ONNX file | 5.7 MB |
 | Two-speaker separation | SpeechBrain SepFormer WHAM | inference checkpoints | 113 MB |
-| Speech-to-text | Whisper Small multilingual INT8 | encoder, decoder, tokens | 375 MB |
+| Speech-to-text | Paraformer Chinese/English INT8 | model and tokens | 217 MB |
+| Multilingual STT fallback | Whisper Small multilingual INT8 | encoder, decoder, tokens | 375 MB |
 | Text-to-speech | Kokoro multi-lang v1.0 | model, voices, lexicons | about 350 MB |
 
-The model-only total is about 873 MB when every optional audio model is present.
-Kinveil downloads only Whisper Small's two `*.int8.onnx` files and token file,
-and checks each file against a fixed SHA-256 hash.
+The default setup downloads Paraformer's INT8 model and token file instead of
+Whisper. Both files are pinned to one upstream revision and checked against
+fixed SHA-256 hashes. Existing Whisper installations remain supported through
+`--whisper-model-dir` for languages outside Chinese and English.
 
 SepFormer additionally needs SpeechBrain, PyTorch, and torchaudio. Their
 installed footprint depends on platform and what is already present; allow
@@ -57,12 +59,12 @@ voice as a nearby person.
 ## Primary runtime command
 
 `kinveil start` is the combined production entry point for camera and microphone
-processing. `kinveil start --debug` additionally loads the local Whisper model
+processing. `kinveil start --debug` additionally loads the local Paraformer model
 and prints each accepted or rejected speaker attribution with its transcript to
 the console. Debug transcription remains local and is not persisted.
 
 The live Silero VAD accepts speech activity from 250 ms upward so ordinary short
-phrases are still passed to Whisper, and keeps pauses shorter than 800 ms inside
+phrases are still passed to the recognizer, and keeps pauses shorter than 800 ms inside
 one utterance to reduce truncated sentences. This only controls audio
 segmentation; it does not relax face, lip-motion, or voice-identity agreement
 rules.

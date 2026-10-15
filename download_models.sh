@@ -3,8 +3,8 @@
 set -euo pipefail
 
 # Download the models used by Kinveil's default camera + microphone session.
-# Existing model files are skipped. This script intentionally does not verify
-# checksums or load the models after downloading them.
+# Existing model files are skipped. Default transcription files are pinned to
+# one upstream revision and verified before installation.
 
 readonly INSIGHTFACE_MODEL_DIR="${HOME}/.insightface/models/buffalo_l"
 readonly INSIGHTFACE_MODEL_URL="https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip"
@@ -19,7 +19,7 @@ fi
 
 readonly KINVEIL_MODEL_ROOT
 readonly VOICE_MODEL_DIR="${KINVEIL_MODEL_ROOT}/voice"
-readonly WHISPER_MODEL_DIR="${VOICE_MODEL_DIR}/sherpa-onnx-whisper-small"
+readonly PARAFORMER_MODEL_DIR="${VOICE_MODEL_DIR}/sherpa-onnx-paraformer-zh-2024-03-09"
 readonly TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/kinveil-models.XXXXXX")"
 
 cleanup() {
@@ -42,6 +42,41 @@ download_file() {
   curl -L --fail --show-error --progress-bar \
     --output "${destination}.download" \
     "${url}"
+  mv "${destination}.download" "${destination}"
+  echo "[ready] ${destination}"
+}
+
+sha256_file() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    sha256sum "$1" | awk '{print $1}'
+  fi
+}
+
+download_verified_file() {
+  local url="$1"
+  local destination="$2"
+  local expected_sha256="$3"
+  local label="$4"
+
+  if [[ -f "${destination}" ]] && [[ "$(sha256_file "${destination}")" == "${expected_sha256}" ]]; then
+    echo "[skip] ${label}: ${destination}"
+    return
+  fi
+
+  mkdir -p "$(dirname "${destination}")"
+  echo "[download] ${label}"
+  curl -L --fail --show-error --progress-bar \
+    --output "${destination}.download" \
+    "${url}"
+  local actual_sha256
+  actual_sha256="$(sha256_file "${destination}.download")"
+  if [[ "${actual_sha256}" != "${expected_sha256}" ]]; then
+    rm -f -- "${destination}.download"
+    echo "[error] ${label}: SHA-256 mismatch" >&2
+    return 1
+  fi
   mv "${destination}.download" "${destination}"
   echo "[ready] ${destination}"
 }
@@ -115,23 +150,20 @@ download_file \
 
 download_pyannote
 
-readonly WHISPER_REVISION="8f3c18b358db4d1f2fc1eae49d75cd20989e4309"
-readonly WHISPER_BASE_URL="https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/resolve/${WHISPER_REVISION}"
+readonly PARAFORMER_REVISION="906992d326ebf0c5171cde675aa0902be9e5bc6c"
+readonly PARAFORMER_BASE_URL="https://huggingface.co/csukuangfj/sherpa-onnx-paraformer-zh-2024-03-09/resolve/${PARAFORMER_REVISION}"
 
-download_file \
-  "${WHISPER_BASE_URL}/small-encoder.int8.onnx" \
-  "${WHISPER_MODEL_DIR}/small-encoder.int8.onnx" \
-  "Whisper Small encoder"
+download_verified_file \
+  "${PARAFORMER_BASE_URL}/model.int8.onnx" \
+  "${PARAFORMER_MODEL_DIR}/model.int8.onnx" \
+  "90bc03034ae1bef9575f8cc798cd1519c8be8aa9e8b458a033e32017ff4d584c" \
+  "Paraformer Chinese/English INT8 model"
 
-download_file \
-  "${WHISPER_BASE_URL}/small-decoder.int8.onnx" \
-  "${WHISPER_MODEL_DIR}/small-decoder.int8.onnx" \
-  "Whisper Small decoder"
-
-download_file \
-  "${WHISPER_BASE_URL}/small-tokens.txt" \
-  "${WHISPER_MODEL_DIR}/small-tokens.txt" \
-  "Whisper Small tokens"
+download_verified_file \
+  "${PARAFORMER_BASE_URL}/tokens.txt" \
+  "${PARAFORMER_MODEL_DIR}/tokens.txt" \
+  "6c0e3b35cece259829e6cb5b8d90d13db88f61ea3a2953d11898e4b2bfd7a2e2" \
+  "Paraformer Chinese/English tokens"
 
 echo
 echo "All default visual and voice models are present."

@@ -105,6 +105,37 @@ DEFAULT_TRANSCRIPTION_MODELS = (
     ),
 )
 
+DEFAULT_PARAFORMER_MODELS = (
+    VoiceModelSpec(
+        filename="model.int8.onnx",
+        url=(
+            "https://huggingface.co/csukuangfj/"
+            "sherpa-onnx-paraformer-zh-2024-03-09/resolve/"
+            "906992d326ebf0c5171cde675aa0902be9e5bc6c/model.int8.onnx"
+        ),
+        sha256="90bc03034ae1bef9575f8cc798cd1519c8be8aa9e8b458a033e32017ff4d584c",
+        license_name="Apache-2.0 (FunASR Paraformer)",
+        source_url=(
+            "https://huggingface.co/csukuangfj/"
+            "sherpa-onnx-paraformer-zh-2024-03-09"
+        ),
+    ),
+    VoiceModelSpec(
+        filename="tokens.txt",
+        url=(
+            "https://huggingface.co/csukuangfj/"
+            "sherpa-onnx-paraformer-zh-2024-03-09/resolve/"
+            "906992d326ebf0c5171cde675aa0902be9e5bc6c/tokens.txt"
+        ),
+        sha256="6c0e3b35cece259829e6cb5b8d90d13db88f61ea3a2953d11898e4b2bfd7a2e2",
+        license_name="Apache-2.0 (FunASR Paraformer)",
+        source_url=(
+            "https://huggingface.co/csukuangfj/"
+            "sherpa-onnx-paraformer-zh-2024-03-09"
+        ),
+    ),
+)
+
 
 def install_default_voice_models(
     directory: Path,
@@ -166,10 +197,28 @@ def install_whisper_model(
     return directory
 
 
+def install_paraformer_model(
+    directory: Path,
+    *,
+    accept_model_license: bool,
+    specs: Iterable[VoiceModelSpec] = DEFAULT_PARAFORMER_MODELS,
+    downloader: Callable[[VoiceModelSpec, Path], None] | None = None,
+) -> Path:
+    """Install the hash-pinned Chinese/English Paraformer INT8 runtime files."""
+    install_default_voice_models(
+        directory,
+        accept_model_licenses=accept_model_license,
+        specs=specs,
+        archive_spec=None,
+        downloader=downloader,
+    )
+    return directory
+
+
 def voice_model_license_summary(
     specs: Iterable[VoiceModelSpec] = DEFAULT_VOICE_MODELS,
     archive_spec: ArchivedVoiceModelSpec | None = DEFAULT_OVERLAP_MODEL,
-    transcription_specs: Iterable[VoiceModelSpec] = DEFAULT_TRANSCRIPTION_MODELS,
+    transcription_specs: Iterable[VoiceModelSpec] = DEFAULT_PARAFORMER_MODELS,
 ) -> str:
     entries = [
         f"{spec.filename}: {spec.license_name} ({spec.source_url})" for spec in specs
@@ -182,7 +231,7 @@ def voice_model_license_summary(
     transcription = tuple(transcription_specs)
     if transcription:
         first = transcription[0]
-        entries.append(f"Whisper Small INT8: {first.license_name} ({first.source_url})")
+        entries.append(f"Paraformer Chinese/English INT8: {first.license_name} ({first.source_url})")
     return "; ".join(entries)
 
 

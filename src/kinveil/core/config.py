@@ -50,5 +50,9 @@ class Settings:
         return self.voice_model_dir / "sherpa-onnx-whisper-small"
 
     @property
+    def voice_paraformer_model_dir(self) -> Path:
+        return self.voice_model_dir / "sherpa-onnx-paraformer-zh-2024-03-09"
+
+    @property
     def tts_model_dir(self) -> Path:
         return self.data_dir / "models" / "tts" / "kokoro-multi-lang-v1_0"

@@ -11,7 +11,8 @@
 | Silero VAD | 判断何时有人说话 | `kinveil voices setup-models` | 约 0.6 MB |
 | Pyannote Segmentation 3.0 | 重叠语音检测 | `kinveil voices setup-models` | 约 5.7 MB |
 | SpeechBrain SepFormer WHAM | 双人重叠语音分离 | 单独命令下载，可选 | 约 113 MB |
-| Whisper Small Multilingual INT8 | 本地语音转文字 | `kinveil voices setup-models` | 约 375 MB |
+| Paraformer Chinese/English INT8 | 默认中文/英文语音转文字 | `kinveil voices setup-models` | 约 217 MB |
+| Whisper Small Multilingual INT8 | 多语言后备语音转文字 | 通过已有路径指定 | 约 375 MB |
 | Kokoro Multi-Lang v1.0 | 本地文字转语音 | 当前需要手动下载，可选 | 约 350 MB |
 
 全部可选模型都安装时，模型文件合计约 **1.2–1.4 GB**。这不包括 Python、ONNX Runtime、PyTorch、SpeechBrain 等运行库；启用 SepFormer 后，相关 Python 运行库还可能占用约 **0.5–1.5 GB**。
@@ -96,13 +97,13 @@ Kinveil 自己管理的模型默认保存在：
 - **下载文件：** [Sherpa-ONNX Pyannote Segmentation 3.0](https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2)
 - **许可证：** MIT。
 
-一次安装上述三个默认音频模型和 Whisper 调试转写模型：
+一次安装上述三个默认音频模型和 Paraformer 中文/英文转写模型：
 
 ```bash
 kinveil voices setup-models --accept-model-licenses
 ```
 
-命令会下载 CAMPPlus、Silero VAD、Pyannote Segmentation 3.0 和 Whisper Small INT8，并通过固定的 SHA-256 检查下载及模型文件是否完整。
+命令会下载 CAMPPlus、Silero VAD、Pyannote Segmentation 3.0 和 Paraformer INT8，并通过固定的 SHA-256 检查下载及模型文件是否完整。
 
 ## 5. SpeechBrain SepFormer WHAM（可选）
 
@@ -125,9 +126,22 @@ kinveil voices setup-separation-model --accept-model-license
 
 Hugging Face 缓存中可能会保留另一份下载文件，因此磁盘实际增加量可能高于模型目录本身。
 
-## 6. Whisper Small Multilingual INT8（可选）
+## 6. Paraformer Chinese/English INT8（默认）
 
-- **状态：** 由 `kinveil voices setup-models --accept-model-licenses` 自动下载。也可以通过 `--whisper-model-dir` 指定已有模型目录。
+- **状态：** 由 `kinveil voices setup-models --accept-model-licenses` 自动下载。
+- **用途：** 针对普通话和英语的本地语音转文字，作为 `kinveil start --debug` 的默认识别器。
+- **模型来源：** [Sherpa-ONNX Paraformer zh 2024-03-09](https://huggingface.co/csukuangfj/sherpa-onnx-paraformer-zh-2024-03-09)
+- **默认目录：** `~/Library/Application Support/Kinveil/models/voice/sherpa-onnx-paraformer-zh-2024-03-09/`
+- **运行文件：** `model.int8.onnx`（约 217 MB）和 `tokens.txt`（约 74 KB）。
+- **许可证：** Apache-2.0（FunASR Paraformer）。
+
+```bash
+kinveil start --debug --paraformer-model-dir /path/to/sherpa-onnx-paraformer-zh-2024-03-09
+```
+
+## 7. Whisper Small Multilingual INT8（多语言后备）
+
+- **状态：** 不再默认下载；已有模型仍可通过 `--whisper-model-dir` 显式使用。
 - **用途：** 完全在本地把语音转换成文字。`kinveil start --debug` 会把识别到的文字输出到控制台。
 - **模型来源：** [Sherpa-ONNX Whisper Small](https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small)
 - **默认目录：** `~/Library/Application Support/Kinveil/models/voice/sherpa-onnx-whisper-small/`
@@ -167,7 +181,7 @@ ONNX CPU 延迟需要在目标 Mac 上用相同录音测量。模型文件来源
 [Whisper Base](https://huggingface.co/csukuangfj/sherpa-onnx-whisper-base) 和
 [Whisper Small](https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small)。
 
-## 7. Kokoro Multi-Lang v1.0（可选）
+## 8. Kokoro Multi-Lang v1.0（可选）
 
 - **状态：** Kinveil 已预留本地 TTS 接口，但当前需要手动下载并解压。
 - **用途：** 把 Kinveil 生成的文字回复转换成语音 WAV 文件，支持中文、英文和混合文本。

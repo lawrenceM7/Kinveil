@@ -115,10 +115,12 @@ class AudioVisualSpeakerResolver:
         motion_threshold: float = 0.012,
         simultaneous_motion_threshold: float = 0.010,
         min_observations: int = 3,
+        synchronization_margin_seconds: float = 0.2,
     ) -> None:
         self.motion_threshold = motion_threshold
         self.simultaneous_motion_threshold = simultaneous_motion_threshold
         self.min_observations = min_observations
+        self.synchronization_margin_seconds = synchronization_margin_seconds
 
     def resolve(
         self,
@@ -130,7 +132,12 @@ class AudioVisualSpeakerResolver:
     ) -> ActiveSpeakerResult:
         grouped: dict[str, list[MouthMotion]] = defaultdict(list)
         for motion in motions:
-            if segment_started_at <= motion.observed_at <= segment_ended_at and motion.visible:
+            if (
+                segment_started_at - self.synchronization_margin_seconds
+                <= motion.observed_at
+                <= segment_ended_at + self.synchronization_margin_seconds
+                and motion.visible
+            ):
                 grouped[motion.face_track_id].append(motion)
         scored = []
         for values in grouped.values():
