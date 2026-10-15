@@ -31,6 +31,7 @@ class _Track:
     embeddings: list[np.ndarray] = field(default_factory=list)
     pose_labels: list[str] = field(default_factory=list)
     quality_scores: list[float] = field(default_factory=list)
+    landmarks: tuple[tuple[float, float], ...] | None = None
 
     @property
     def centroid(self) -> np.ndarray:
@@ -185,6 +186,7 @@ class PresenceEngine:
                 track = self._new_track(face.box, now)
             track.identity_confidence = max(0.0, match.similarity)
         track.box = face.box
+        track.landmarks = face.landmarks
         track.last_seen = now
         track.observations += 1
         self._add_sample(track, embedding, face.pose_label, face.detection_score)
@@ -259,6 +261,7 @@ class PresenceEngine:
             persistent=track.person_id is not None,
             last_seen=track.last_seen,
             observations=track.observations,
+            landmarks=track.landmarks,
         )
 
 

@@ -28,6 +28,7 @@ class DetectedFace:
     embedding: np.ndarray
     detection_score: float
     pose: tuple[float, float, float] | None = None
+    landmarks: tuple[tuple[float, float], ...] | None = None
 
     @property
     def pose_label(self) -> str:
@@ -88,3 +89,4 @@ class TrackSnapshot:
     persistent: bool
     last_seen: float
     observations: int
+    landmarks: tuple[tuple[float, float], ...] | None = None

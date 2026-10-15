@@ -32,15 +32,18 @@ session or a review queue instead of being written into somebody's memory.
 
 ### Permission is progressive
 
-Camera access, transient face processing, persistent biometric storage, and
-memory storage are separate permissions. Camera access by the device owner does
-not grant permission to enroll every visitor appearing in frame.
+Camera access, biometric processing/storage, and memory storage remain distinct
+purposes. The combined local session can explain camera/microphone processing
+and bounded voice-template storage in one startup permission, while an unknown
+visitor still requires approval before becoming a persistent identity.
 
 ### Local by default
 
 Camera frames are processed in memory. The face subsystem stores embeddings,
-consent metadata, and model versions—not raw frames or recordings. Any future
-cloud feature must be separately disclosed and optional.
+consent metadata, and model versions—not raw frames or recordings. The voice
+identity subsystem likewise stores only bounded embeddings after explicit
+voice-biometric consent, never raw audio. Any future cloud feature must be
+separately disclosed and optional.
 
 ## Identity lifecycle
 
@@ -100,9 +103,16 @@ unmatched faces with in-memory tracks, and expires stale tracks.
 ## Multiple people and speech
 
 Presence and speaker identity are separate signals. A later audio-visual speaker
-resolver will combine voice activity detection, speaker diarization, consented
-voice embeddings, visible people, and lip-motion correlation. Conflicting
-evidence produces an unknown speaker, not a forced attribution.
+resolver combines voice activity detection, consented voice embeddings, visible
+people, acoustic overlap detection, and lip-motion correlation. Conflicting
+evidence produces an unknown speaker, not a forced attribution. With the
+optional separator, at most two overlapping sources are processed independently.
+
+Natural speech can create temporary in-memory tracks such as `Speaker A`
+without advance enrollment. When bounded voice-template storage was allowed at
+startup, three consistent observations of a unique persistent face, synchronized
+mouth motion, and the same voice track can bind high-quality samples to that
+stable person ID. Face presence by itself is never sufficient.
 
 ## Memory firewall
 
@@ -145,10 +155,10 @@ infrared anti-spoofing hardware.
 ## First implementation milestone
 
 This repository milestone provides nullable names, stable anonymous person IDs,
-explicit consent metadata, temporary multi-face tracks, recognition of
-persistent identities, consented promotion of a track, later naming, an
-always-on camera preview command, and extension points for desktop UI and voice
-identity.
+explicit consent metadata, temporary multi-face and speaker tracks, recognition
+of persistent identities, consented promotion of tracks, later naming, an
+always-on camera preview command, and a provider-neutral voice identity core.
 
 It does not yet provide liveness detection, encrypted biometric storage,
-production-grade object tracking, speaker attribution, or a polished desktop UI.
+production-grade object tracking, separation of overlapping speakers into
+independent audio streams, or a polished desktop UI.

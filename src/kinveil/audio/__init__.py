@@ -1,4 +1,17 @@
-from .stt import SpeechToText, Transcript
-from .tts import SynthesizedSpeech, TextToSpeech
+from .stt import AudioTranscriber, SherpaOnnxWhisperTranscriber, SpeechToText, Transcript
+from .tts import SherpaOnnxKokoroTTS, SynthesizedSpeech, TextToSpeech
+from .voice import SpeakerTrackSnapshot, VoiceIdentityEngine, VoiceRecognizer, VoiceStore
 
-__all__ = ["SpeechToText", "SynthesizedSpeech", "TextToSpeech", "Transcript"]
+__all__ = [
+    "AudioTranscriber",
+    "SherpaOnnxKokoroTTS",
+    "SherpaOnnxWhisperTranscriber",
+    "SpeakerTrackSnapshot",
+    "SpeechToText",
+    "SynthesizedSpeech",
+    "TextToSpeech",
+    "Transcript",
+    "VoiceIdentityEngine",
+    "VoiceRecognizer",
+    "VoiceStore",
+]

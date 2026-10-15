@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 from platformdirs import user_data_dir
@@ -16,10 +16,39 @@ class Settings:
     detector_size: tuple[int, int] = (640, 640)
 
     @classmethod
-    def default(cls) -> "Settings":
+    def default(cls) -> Settings:
         override = os.environ.get("KINVEIL_DATA_DIR")
-        return cls(data_dir=Path(override) if override else Path(user_data_dir("Kinveil", "Kinveil")))
+        data_dir = Path(override) if override else Path(user_data_dir("Kinveil", "Kinveil"))
+        return cls(data_dir=data_dir)
 
     @property
     def face_database(self) -> Path:
         return self.data_dir / "faces.sqlite3"
+
+    @property
+    def voice_model_dir(self) -> Path:
+        return self.data_dir / "models" / "voice"
+
+    @property
+    def voice_embedding_model(self) -> Path:
+        return self.voice_model_dir / "3dspeaker-campplus-zh-cn-16k-common.onnx"
+
+    @property
+    def voice_vad_model(self) -> Path:
+        return self.voice_model_dir / "silero-vad.onnx"
+
+    @property
+    def voice_overlap_model(self) -> Path:
+        return self.voice_model_dir / "pyannote-segmentation-3.0.onnx"
+
+    @property
+    def voice_separation_model_dir(self) -> Path:
+        return self.voice_model_dir / "sepformer-wham"
+
+    @property
+    def voice_transcription_model_dir(self) -> Path:
+        return self.voice_model_dir / "sherpa-onnx-whisper-small"
+
+    @property
+    def tts_model_dir(self) -> Path:
+        return self.data_dir / "models" / "tts" / "kokoro-multi-lang-v1_0"

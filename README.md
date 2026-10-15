@@ -2,7 +2,9 @@
 
 > One AI. Many relationships. Private by design.
 
-Kinveil is a local-first, face-aware AI assistant for shared spaces. It recognizes enrolled people, keeps identity-scoped memories separate, and provides modular speech, language-model, permission, and tool runtimes.
+Kinveil is a local-first, face- and voice-aware AI assistant for shared spaces. It recognizes enrolled people, keeps identity-scoped memories separate, and provides modular speech, language-model, permission, and tool runtimes.
+
+See [MODELS.md](MODELS.md) for the complete model manifest, download methods, disk usage, storage locations, and license notes.
 
 The project is in its first development stage. The application architecture is scaffolded and the face identity module is the first implemented vertical slice.
 
@@ -47,7 +49,7 @@ Perception
 ```text
 src/kinveil/
 ├── app/           application composition
-├── audio/         speech-to-text and text-to-speech contracts
+├── audio/         speech, voice identity, and text-to-speech contracts
 ├── emotion/       multimodal emotion-signal contracts
 ├── intent/        intent classification contracts
 ├── llm/           provider-neutral LLM contracts
@@ -120,6 +122,136 @@ See [docs/face-recognition.md](docs/face-recognition.md) for the design and limi
 See [docs/product.md](docs/product.md) for the anonymous-first identity,
 consent, presence, and memory behavior.
 
+## Voice identity foundation
+
+Kinveil can build temporary `Speaker A`, `Speaker B`, ... tracks from naturally
+spoken, single-speaker audio segments. Nothing has to be recorded in advance.
+Before consent, those tracks and embeddings live only in memory. In the combined
+session, one startup permission covers local sensing and bounded voice-template
+storage for people who were already approved for persistent recognition. After
+three consistent face, lip-motion, and voice observations, the generic runtime
+can bind the voice track to that person's stable ID. Future speech can then
+resolve to the same person after a restart, and high-quality embeddings can
+refresh a bounded pool of at most 24 templates.
+
+The voice templates share the local identity database with face templates, but
+voice consent and deletion are independent. Raw audio is never written by the
+voice identity layer.
+
+Install live voice dependencies and the pinned local models:
+
+```bash
+python -m pip install -e '.[voice]'
+kinveil voices setup-models --accept-model-licenses
+```
+
+The setup command prints the third-party model licenses unless the acceptance
+flag is present. It downloads an Apache-2.0 3D-Speaker CAM++ embedding model,
+the MIT-licensed Silero VAD and Pyannote Segmentation models, and the MIT-licensed
+Whisper Small multilingual INT8 files used by debug transcription. Every archive
+and installed model file is checked against a fixed SHA-256 hash.
+
+Listen without persisting unknown speakers:
+
+```bash
+kinveil voices watch
+```
+
+Inspect which people currently have persistent voice templates:
+
+```bash
+kinveil voices list
+```
+
+To offer enrollment for one existing person after their voice has appeared in
+three speech segments, pass their stable ID:
+
+```bash
+kinveil voices watch --person-id PERSON_ID
+```
+
+Kinveil then asks for voice-biometric consent once. Install the optional
+two-speaker separation backend and its Apache-2.0 model separately:
+
+```bash
+python -m pip install -e '.[separation]'
+kinveil voices setup-separation-model --accept-model-license
+```
+
+See [docs/voice-identity.md](docs/voice-identity.md).
+
+Run the combined camera and microphone session:
+
+```bash
+kinveil start
+```
+
+`kinveil start` is the primary application entry point. It opens the camera and
+microphone together and runs face presence, voice identity, lip synchronization,
+and acoustic overlap detection in one session. The older
+`kinveil session watch` command remains available as a compatibility alias.
+
+To additionally transcribe recognized speech and print speaker-attributed text
+to the terminal, use:
+
+```bash
+kinveil start --debug
+```
+
+Debug lines include the resolved identity, transcript, lip-motion score, and
+decision reason. The regular
+`kinveil voices setup-models --accept-model-licenses` command installs the
+required Whisper model in the platform data directory at
+`models/voice/sherpa-onnx-whisper-small`; pass `--whisper-model-dir PATH` to use
+another extracted model directory. Normal `kinveil start` does not load Whisper
+or print transcripts.
+
+This session attributes speech only when visible mouth motion overlaps the
+detected speech interval. A known voice must agree with the recognized face.
+Conflicting identities, no visible mouth, or insufficient motion produce
+`Unknown speaker`. When multiple mouths move, a separated persistent voice is
+accepted only if exactly one moving face has the same stable identity. A known
+face with a new transient voice can be identified for the current utterance.
+When startup voice-template storage was allowed, three consistent multimodal
+observations automatically enroll at least two high-quality voice embeddings;
+the rule is identical for every enrolled person and contains no name-specific
+behavior.
+
+Before extracting a voice embedding, the combined session runs acoustic
+overlapped-speech detection. Pyannote's seven-class powerset output distinguishes
+silence, one active speaker, and two active speakers per time frame. At least
+150 ms of overlap and 5% of speech frames must agree before SepFormer separates
+the segment into at most two sources. Each source is recognized independently
+and checked against synchronized face identity and mouth motion. Separated audio
+is never allowed to refresh a persistent voice-template pool, preventing model
+artifacts from contaminating long-term identity data. Without the optional
+separator, overlap safely falls back to `Unknown speaker`.
+
+Optional local speech-to-text can run after identity attribution. Download and
+extract a sherpa-onnx multilingual Whisper model, then pass its directory:
+
+```bash
+kinveil session watch --whisper-model-dir /path/to/sherpa-onnx-whisper-small
+```
+
+The int8 Whisper Small encoder, decoder, and token file use roughly 375 MB.
+Transcripts remain in memory and appear as `Person: text`; this layer does not
+write raw audio or transcripts to disk.
+
+Kinveil also includes a reserved local text-to-speech backend for the
+Chinese/English Kokoro model through sherpa-onnx. Once a model directory is
+available, generate a WAV file with:
+
+```bash
+kinveil tts synthesize "你好，我是 Kinveil。" \
+  --model-dir /path/to/kokoro-multi-lang-v1_0 \
+  --voice-id 48 \
+  --output ./reply.wav
+```
+
+See [docs/audio-models.md](docs/audio-models.md) for model sizes, storage
+tradeoffs, and the planned real-time playback path.
+
 ## Continuous presence prototype
 
 Kinveil can keep a camera preview open and periodically resolve every visible
@@ -159,7 +291,7 @@ deleting unrelated memories:
 
 1. Face enrollment and recognition.
 2. Live camera tracking and explicit active-person sessions.
-3. Local speech recognition and synthesis.
+3. Live voice identity, local speech recognition, and synthesis.
 4. Identity-scoped memories with private/shared visibility.
 5. LLM and intent routing.
 6. Permission-gated skills and tools.

@@ -42,12 +42,21 @@ class InsightFaceBackend:
                 values = np.asarray(raw_pose, dtype=np.float32).reshape(-1)
                 if values.size >= 3 and np.all(np.isfinite(values[:3])):
                     pose = tuple(float(value) for value in values[:3])
+            raw_landmarks = getattr(face, "kps", None)
+            landmarks = None
+            if raw_landmarks is not None:
+                points = np.asarray(raw_landmarks, dtype=np.float32).reshape(-1, 2)
+                if len(points) >= 5 and np.all(np.isfinite(points[:5])):
+                    landmarks = tuple(
+                        (float(point[0]), float(point[1])) for point in points[:5]
+                    )
             results.append(
                 DetectedFace(
                     box=FaceBox(*(int(value) for value in face.bbox)),
                     embedding=normalize(vector),
                     detection_score=float(face.det_score),
                     pose=pose,
+                    landmarks=landmarks,
                 )
             )
         return tuple(results)

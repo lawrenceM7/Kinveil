@@ -19,6 +19,16 @@ face = [
   "onnxruntime>=1.18,<2",
   "opencv-python>=4.10,<5",
 ]
+voice = [
+  "onnxruntime>=1.18,<2",
+  "sherpa-onnx>=1.10.28,<2",
+  "sounddevice>=0.5,<1",
+]
+separation = [
+  "speechbrain>=1.0,<2",
+  "torch>=2.2,<3",
+  "torchaudio>=2.2,<3",
+]
 dev = [
   "pytest>=8.2,<9",
   "pytest-cov>=5,<7",
