@@ -59,6 +59,9 @@ src/kinveil/
 └── vision/face/   enrollment, storage, and recognition
 ```
 
+See [docs/memory.md](docs/memory.md) for the identity-scoped background memory,
+consent, review, and retrieval design.
+
 ## Development setup
 
 Python 3.11 or newer is recommended.

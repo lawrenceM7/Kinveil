@@ -22,6 +22,7 @@ from kinveil.audio.voice import (
     SpeakerTrackSnapshot,
     SpeechBrainSepFormerSeparator,
     VoiceIdentityEngine,
+    UserTurn,
     install_default_voice_models,
     install_paraformer_model,
     install_sepformer_model,
@@ -233,7 +234,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         voice_backend = SherpaOnnxVoiceBackend(embedding_model)
         voice = VoiceIdentityEngine(voice_backend, container.voices)
-        segmenter = AdaptivePauseSegmenter(SherpaVadSegmenter(vad_model))
+        segmenter = SherpaVadSegmenter(vad_model, min_silence_seconds=0.45)
         overlap_detector = PyannoteOverlapDetector(overlap_model)
         separation_model = args.separation_model or settings.voice_separation_model_dir
         separator = (
@@ -276,11 +277,8 @@ def main(argv: list[str] | None = None) -> int:
                 transcriber=transcriber,
                 camera_index=args.camera,
                 microphone_device=device,
-                on_transcript=(
-                    _print_debug_transcript
-                    if debug
-                    else None
-                ),
+                on_transcript=None,
+                on_turn=_print_debug_turn if debug else None,
                 face_enrollment_handler=lambda track: _enroll_camera_visitor(presence, track),
                 auto_voice_enrollment=True,
                 show_transcript_overlay=not debug,
@@ -493,6 +491,19 @@ def _print_debug_transcript(result: ActiveSpeakerResult, transcript: Transcript)
     metrics.append(f"lip={result.lip_score:.3f}")
     detail = f"{'; '.join(metrics)}; {result.reason}"
     print(f"[{result.label}] {transcript.text} ({detail})")
+
+
+def _print_debug_turn(turn: UserTurn) -> None:
+    metrics = [f"segments={turn.segment_count}"]
+    if turn.audio_duration:
+        metrics.append(f"audio={turn.audio_duration:.2f}s")
+    if turn.audio_rms is not None:
+        metrics.append(f"rms={turn.audio_rms:.4f}")
+    if turn.language:
+        metrics.append(f"lang={turn.language}")
+    metrics.append(f"identity={turn.identity_status}")
+    metrics.append(f"lip={turn.lip_score:.3f}")
+    print(f"[{turn.label}] {turn.text} ({'; '.join(metrics)})")
 
 
 def _person_json(person: Person, pose_counts: dict[str, int] | None = None) -> dict[str, object]:

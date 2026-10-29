@@ -20,6 +20,7 @@ from .separation import (
 )
 from .sherpa_backend import SherpaOnnxVoiceBackend
 from .store import VoiceStore
+from .turns import TurnState, UserTurn, UserTurnStateMachine
 
 __all__ = [
     "ActiveSpeakerResult",
@@ -37,6 +38,9 @@ __all__ = [
     "SeparatedSources",
     "SpeechBrainSepFormerSeparator",
     "SpeechSeparator",
+    "TurnState",
+    "UserTurn",
+    "UserTurnStateMachine",
     "VoiceEmbeddingBackend",
     "VoiceIdentityEngine",
     "VoiceMatch",

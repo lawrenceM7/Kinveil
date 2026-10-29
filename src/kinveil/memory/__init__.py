@@ -1,3 +1,52 @@
-from .base import MemoryRecord, MemoryStore, Visibility
+from .base import (
+    MemoryCandidate,
+    MemoryContext,
+    MemoryEmbeddingBackend,
+    MemoryKind,
+    MemoryRecord,
+    MemoryStatus,
+    MemoryStore,
+    MemorySubmission,
+    PendingMemoryReview,
+    PolicyAction,
+    PolicyDecision,
+    RetentionClass,
+    Sensitivity,
+    Visibility,
+)
+from .policy import MemoryPolicy
+from .service import (
+    BackgroundMemoryWorker,
+    MemoryExtractor,
+    MemoryReflector,
+    MemoryService,
+    NullMemoryExtractor,
+    ReflectionEngine,
+)
+from .store import SQLiteMemoryStore, estimate_tokens
 
-__all__ = ["MemoryRecord", "MemoryStore", "Visibility"]
+__all__ = [
+    "MemoryCandidate",
+    "BackgroundMemoryWorker",
+    "MemoryContext",
+    "MemoryEmbeddingBackend",
+    "MemoryExtractor",
+    "MemoryKind",
+    "MemoryPolicy",
+    "MemoryReflector",
+    "MemoryRecord",
+    "MemoryService",
+    "MemoryStatus",
+    "MemoryStore",
+    "MemorySubmission",
+    "NullMemoryExtractor",
+    "PendingMemoryReview",
+    "PolicyAction",
+    "PolicyDecision",
+    "ReflectionEngine",
+    "RetentionClass",
+    "SQLiteMemoryStore",
+    "Sensitivity",
+    "Visibility",
+    "estimate_tokens",
+]

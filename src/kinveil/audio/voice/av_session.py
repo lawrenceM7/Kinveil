@@ -21,6 +21,7 @@ from .live import SpeechSegment, VoiceSegmenter, _import_sounddevice, _segment_q
 from .models import SpeakerTrackSnapshot
 from .overlap import OverlapDetection, OverlapDetector
 from .separation import SpeechSeparator
+from .turns import UserTurn, UserTurnStateMachine
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,7 @@ class AudioVisualSessionRunner:
         face_interval_seconds: float = 0.5,
         window_title: str = "Kinveil Audio-Visual Presence",
         on_transcript: Callable[[ActiveSpeakerResult, Transcript], None] | None = None,
+        on_turn: Callable[[UserTurn], None] | None = None,
         face_enrollment_handler: Callable[[TrackSnapshot], str | None] | None = None,
         face_enrollment_observations: int = 4,
         auto_voice_enrollment: bool = False,
@@ -86,6 +88,7 @@ class AudioVisualSessionRunner:
         self.face_interval_seconds = face_interval_seconds
         self.window_title = window_title
         self.on_transcript = on_transcript
+        self.on_turn = on_turn
         self.face_enrollment_handler = face_enrollment_handler
         self.face_enrollment_observations = face_enrollment_observations
         self.auto_voice_enrollment = auto_voice_enrollment
@@ -97,6 +100,7 @@ class AudioVisualSessionRunner:
         self._segments: queue.Queue[_QueuedSpeechSegment] = queue.Queue(maxsize=4)
         self._stop = threading.Event()
         self._voice_face_agreement: dict[tuple[str, str], int] = {}
+        self.turns = UserTurnStateMachine()
 
     def run(self) -> None:
         try:
@@ -191,7 +195,11 @@ class AudioVisualSessionRunner:
                             print(status_message)
                             status_until = monotonic() + 4.0
                     self._report_transcripts(active)
+                    self._report_turns(
+                        self._ingest_turn_segments(active, event.started_at, event.ended_at)
+                    )
                     active_until = now + 4.0
+                self._report_turns(self.turns.poll(now))
                 self._draw(
                     cv2,
                     frame,
@@ -220,6 +228,7 @@ class AudioVisualSessionRunner:
                     pending_enrollment = None
                     status_until = monotonic() + 4.0
         finally:
+            self._report_turns(self.turns.flush())
             self._stop.set()
             capture_thread.join(timeout=2.0)
             processing_thread.join(timeout=2.0)
@@ -235,6 +244,31 @@ class AudioVisualSessionRunner:
         for result, transcript in active:
             if transcript is not None and transcript.text:
                 self.on_transcript(result, transcript)
+
+    def _ingest_turn_segments(
+        self,
+        active: tuple[tuple[ActiveSpeakerResult, Transcript | None], ...],
+        started_at: float,
+        ended_at: float,
+    ) -> tuple[UserTurn, ...]:
+        ready: list[UserTurn] = []
+        for result, transcript in active:
+            if transcript is not None and transcript.text:
+                ready.extend(
+                    self.turns.ingest(
+                        result,
+                        transcript,
+                        started_at=started_at,
+                        ended_at=ended_at,
+                    )
+                )
+        return tuple(ready)
+
+    def _report_turns(self, turns: tuple[UserTurn, ...]) -> None:
+        if self.on_turn is None:
+            return
+        for turn in turns:
+            self.on_turn(turn)
 
     def _next_enrollment_candidate(
         self,
@@ -267,7 +301,11 @@ class AudioVisualSessionRunner:
                 stream_started_at = monotonic()
                 while not self._stop.is_set():
                     samples, _overflowed = stream.read(block_size)
-                    for segment in self.segmenter.accept(samples):
+                    segments = self.segmenter.accept(samples)
+                    self.turns.observe_speech(
+                        bool(getattr(self.segmenter, "speech_detected", False))
+                    )
+                    for segment in segments:
                         self._queue_segment(segment, stream_started_at)
         except Exception as exc:
             self._events.put(exc)

@@ -101,6 +101,10 @@ def test_live_vad_adds_audio_before_and_after_detected_speech(monkeypatch, tmp_p
         def pop(self):
             self.ready = False
 
+        @property
+        def detected(self):
+            return self.ready
+
     class FakeSherpa:
         VadModelConfig = VadConfig
         VoiceActivityDetector = Detector

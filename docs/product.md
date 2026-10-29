@@ -114,6 +114,21 @@ startup, three consistent observations of a unique persistent face, synchronized
 mouth motion, and the same voice track can bind high-quality samples to that
 stable person ID. Face presence by itself is never sufficient.
 
+## User turns
+
+Speech segments are not sent directly to a language model. A local turn state
+machine combines nearby segments from the same speaker and emits a `UserTurn`
+only after the person appears to have stopped speaking. Normal complete phrases
+use a short 650 ms continuation window. Clearly incomplete endings such as
+“然后”, “因为”, or “我想让你” may wait up to one second. New Silero speech
+activity cancels the pending finalization immediately.
+
+Each finalized turn contains the merged transcript, time range, language,
+segment count, and turn-level identity status. Consistent accepted face, lip,
+and voice evidence produces `confirmed`; a mixture of known and unknown
+segments produces `partial`; conflicting known identities produce `conflict`.
+Only a finalized turn is eligible for future LLM, memory, or tool processing.
+
 ## Memory firewall
 
 Memories are addressed by stable person UUID, never by a display name or current

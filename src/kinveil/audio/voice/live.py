@@ -24,6 +24,9 @@ class VoiceSegmenter(Protocol):
 
     def accept(self, samples: np.ndarray) -> tuple[SpeechSegment, ...]: ...
 
+    @property
+    def speech_detected(self) -> bool: ...
+
 
 class AdaptivePauseSegmenter:
     """Merge nearby VAD chunks using a pause budget that follows phrase length."""
@@ -72,6 +75,10 @@ class AdaptivePauseSegmenter:
                 ready.append(self._pending)
                 self._pending = None
         return tuple(ready)
+
+    @property
+    def speech_detected(self) -> bool:
+        return bool(getattr(self.segmenter, "speech_detected", False))
 
     def _pause_seconds(self, segment: SpeechSegment) -> float:
         duration = (segment.end_sample - segment.start_sample) / self.sample_rate
@@ -168,6 +175,11 @@ class SherpaVadSegmenter:
             )
             self._vad.pop()
         return tuple(segments)
+
+    @property
+    def speech_detected(self) -> bool:
+        detected = getattr(self._vad, "detected", False)
+        return bool(detected() if callable(detected) else detected)
 
     def _append_history(self, waveform: np.ndarray) -> None:
         if waveform.size:
