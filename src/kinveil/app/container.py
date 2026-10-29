@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from kinveil.audio.voice import VoiceStore
 from kinveil.core import Settings
-from kinveil.llm import BoundedContextBuilder, ContextLimits
+from kinveil.llm import BoundedContextBuilder, ChatConfigStore, ContextLimits
 from kinveil.memory import MemoryService, SQLiteMemoryStore
 from kinveil.vision.face import FaceStore
 
@@ -16,6 +16,7 @@ class AppContainer:
     voices: VoiceStore
     memories: MemoryService
     llm_context: BoundedContextBuilder
+    chat_configs: ChatConfigStore
 
     @classmethod
     def build(cls, settings: Settings | None = None) -> AppContainer:
@@ -37,4 +38,5 @@ class AppContainer:
                     maximum_memory_tokens=selected.memory_context_tokens,
                 )
             ),
+            ChatConfigStore(selected.chat_database),
         )

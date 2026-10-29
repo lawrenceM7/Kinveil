@@ -28,6 +28,17 @@ from kinveil.audio.voice import (
     install_sepformer_model,
     voice_model_license_summary,
 )
+from kinveil.llm import (
+    BackgroundChatRunner,
+    ChatConfigStore,
+    ChatMessage,
+    ChatSession,
+    EncryptedSQLiteSecretStore,
+    LLMRequest,
+    OpenAICompatibleLanguageModel,
+    ensure_chat_setup,
+    unlock_chat_secrets,
+)
 from kinveil.vision.face import (
     CameraPresenceRunner,
     FaceEnrollment,
@@ -47,6 +58,12 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_subparsers(dest="command", required=True)
     start = commands.add_parser("start", help="start Kinveil with camera and microphone")
     _add_session_arguments(start, include_debug=True)
+
+    chat = commands.add_parser("chat", help="configure and test the chat model")
+    chat_commands = chat.add_subparsers(dest="chat_command", required=True)
+    chat_commands.add_parser("configure", help="open the local chat model setup window")
+    chat_commands.add_parser("status", help="show the active model without revealing its key")
+    chat_commands.add_parser("test", help="send a small connectivity test")
 
     tts = commands.add_parser("tts", help="synthesize speech locally")
     tts_commands = tts.add_subparsers(dest="tts_command", required=True)
@@ -189,6 +206,45 @@ def main(argv: list[str] | None = None) -> int:
     settings = Settings.default()
     if args.data_dir:
         settings = Settings(data_dir=args.data_dir)
+    if args.command == "chat":
+        chat_configs = ChatConfigStore(settings.chat_database)
+        secrets = EncryptedSQLiteSecretStore(settings.chat_database)
+        if not unlock_chat_secrets(secrets, show_dialog=True):
+            raise SystemExit("chat secrets remain locked")
+        if args.chat_command == "configure":
+            configured = ensure_chat_setup(
+                chat_configs,
+                secrets,
+                show_dialog=True,
+                force_dialog=True,
+            )
+            if configured is None:
+                raise SystemExit("chat model setup was cancelled")
+            print(f"Saved chat model: {configured.config.name} ({configured.config.model})")
+            return 0
+        configured = ensure_chat_setup(chat_configs, secrets, show_dialog=False)
+        if configured is None:
+            raise SystemExit("chat model is not configured; run: kinveil chat configure")
+        if args.chat_command == "status":
+            print(
+                json.dumps(
+                    {
+                        "name": configured.config.name,
+                        "model": configured.config.model,
+                        "base_url": configured.config.base_url,
+                        "api_key": "AES-256-GCM encrypted in local chat.sqlite3",
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            )
+            return 0
+        response = OpenAICompatibleLanguageModel(
+            configured.config, configured.api_key
+        ).complete(LLMRequest((ChatMessage("user", "请只回复：连接成功"),)))
+        print(response.text)
+        return 0
+
     container = AppContainer.build(settings)
 
     if args.command == "tts":
@@ -210,6 +266,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command in {"start", "session"}:
+        configured = None
+        if args.command == "start":
+            secrets = EncryptedSQLiteSecretStore(settings.chat_database)
+            if not unlock_chat_secrets(secrets, show_dialog=True):
+                raise SystemExit("chat secrets remain locked")
+            configured = ensure_chat_setup(
+                container.chat_configs,
+                secrets,
+                show_dialog=True,
+            )
+            if configured is None:
+                raise SystemExit("a chat model is required to start Kinveil")
         sensing_allowed = args.allow_local_sensing or _confirm(
             "Allow Kinveil to use the camera and microphone for local face, voice, "
             "and lip-motion analysis, and to keep a bounded voice-template pool for "
@@ -244,16 +312,19 @@ def main(argv: list[str] | None = None) -> int:
         )
         debug = bool(getattr(args, "debug", False))
         whisper_model_dir = args.whisper_model_dir
+        needs_transcription = args.command == "start" or debug
         paraformer_model_dir = args.paraformer_model_dir or (
-            settings.voice_paraformer_model_dir if debug and whisper_model_dir is None else None
+            settings.voice_paraformer_model_dir
+            if needs_transcription and whisper_model_dir is None
+            else None
         )
         if (
-            debug
+            needs_transcription
             and (paraformer_model_dir is None or not paraformer_model_dir.is_dir())
             and whisper_model_dir is None
         ):
             raise SystemExit(
-                "debug transcription model is missing; run: kinveil voices setup-models "
+                "transcription model is missing; run: kinveil voices setup-models "
                 "--accept-model-licenses, or pass --paraformer-model-dir/--whisper-model-dir"
             )
         transcriber = (
@@ -267,6 +338,20 @@ def main(argv: list[str] | None = None) -> int:
             else None
         )
         device = int(args.device) if args.device and args.device.isdigit() else args.device
+        chat_runner = None
+        if configured is not None:
+            model = OpenAICompatibleLanguageModel(configured.config, configured.api_key)
+            chat_runner = BackgroundChatRunner(
+                ChatSession(model, container.llm_context, container.memories),
+                _print_chat_response,
+            )
+
+        def on_turn(turn: UserTurn) -> None:
+            if debug:
+                _print_debug_turn(turn)
+            if chat_runner is not None:
+                chat_runner.submit(turn)
+
         try:
             AudioVisualSessionRunner(
                 presence,
@@ -278,13 +363,16 @@ def main(argv: list[str] | None = None) -> int:
                 camera_index=args.camera,
                 microphone_device=device,
                 on_transcript=None,
-                on_turn=_print_debug_turn if debug else None,
+                on_turn=on_turn if needs_transcription else None,
                 face_enrollment_handler=lambda track: _enroll_camera_visitor(presence, track),
                 auto_voice_enrollment=True,
                 show_transcript_overlay=not debug,
             ).run()
         except KeyboardInterrupt:
             print("\nStopped audio-visual session.")
+        finally:
+            if chat_runner is not None:
+                chat_runner.close(wait=True)
         return 0
 
     if args.command == "voices":
@@ -504,6 +592,11 @@ def _print_debug_turn(turn: UserTurn) -> None:
     metrics.append(f"identity={turn.identity_status}")
     metrics.append(f"lip={turn.lip_score:.3f}")
     print(f"[{turn.label}] {turn.text} ({'; '.join(metrics)})")
+
+
+def _print_chat_response(turn: UserTurn, text: str) -> None:
+    if text:
+        print(f"[Kinveil → {turn.label}] {text}")
 
 
 def _person_json(person: Person, pose_counts: dict[str, int] | None = None) -> dict[str, object]:

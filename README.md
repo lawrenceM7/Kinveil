@@ -191,8 +191,38 @@ kinveil start
 
 `kinveil start` is the primary application entry point. It opens the camera and
 microphone together and runs face presence, voice identity, lip synchronization,
-and acoustic overlap detection in one session. The older
+acoustic overlap detection, final-turn transcription, and chat in one session.
+The first launch opens a local setup window if no chat model is configured. The
+model URL and parameters are saved under Kinveil's user-data directory in
+`chat.sqlite3`. The API key is encrypted there with AES-256-GCM using a key
+derived from the user's master password with Scrypt. Only a random salt and an
+irreversible password verifier are stored; the master password is never saved,
+and the API key is decrypted only in process memory after unlock. This local
+database is outside the repository and restricted to the current OS user where
+supported, so none of the settings are committed to Git. The same storage works
+on macOS, Windows, and Linux. Losing the master password requires entering the
+API configuration again. The older
 `kinveil session watch` command remains available as a compatibility alias.
+
+The master password must contain at least eight characters. Kinveil uses a
+graphical password prompt when Tk is available and falls back to hidden terminal
+input on headless systems, keeping the setup flow portable across desktop and
+server Python installations.
+
+The chat endpoint must implement the OpenAI-compatible `chat/completions` API.
+Settings can be changed or checked independently:
+
+```bash
+kinveil chat configure
+kinveil chat status
+kinveil chat test
+```
+
+Final attributed user turns are sent to the model on a background queue so a
+network request cannot block camera or microphone processing. Confirmed people
+receive only their own bounded memory context; unknown or conflicting speakers
+receive neither persistent personal memory nor retained chat history. Replies
+currently appear in the terminal.
 
 To additionally transcribe recognized speech and print speaker-attributed text
 to the terminal, use:
@@ -208,7 +238,8 @@ default Paraformer model at
 `models/voice/sherpa-onnx-paraformer-zh-2024-03-09`; pass
 `--paraformer-model-dir PATH` to use another directory. Existing Whisper models
 remain available through `--whisper-model-dir PATH`. Normal `kinveil start`
-does not load an ASR model or print transcripts.
+loads the default ASR model for chat but only prints the assistant reply;
+`--debug` additionally prints speaker-attributed transcription diagnostics.
 
 This session attributes speech only when visible mouth motion overlaps the
 detected speech interval. A known voice must agree with the recognized face.

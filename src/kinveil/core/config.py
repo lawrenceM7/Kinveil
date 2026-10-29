@@ -43,6 +43,10 @@ class Settings:
         return self.data_dir / "memories.sqlite3"
 
     @property
+    def chat_database(self) -> Path:
+        return self.data_dir / "chat.sqlite3"
+
+    @property
     def voice_model_dir(self) -> Path:
         return self.data_dir / "models" / "voice"
 

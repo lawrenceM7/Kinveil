@@ -9,6 +9,7 @@ description = "A local-first, face-aware AI assistant for shared spaces"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "cryptography>=43,<47",
   "numpy>=1.26,<3",
   "platformdirs>=4.2,<5",
 ]
